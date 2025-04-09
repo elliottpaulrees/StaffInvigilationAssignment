@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ exam_name }} Invigilators</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <style>
+        th {
+            background-color: #2fccd6 !important;
+            color: white !important;
+            padding: 10px !important;
+            text-align: center !important;
+        }
+
+        .nord-btn {
+            background-color: #2fccd6 !important;
+            color: white !important;
+            border: none;
+        }
+
+        .nord-btn:hover {
+            background-color: #0056b3 !important;
+        }
+
+        .checkbox-cell {
+            width: 40px;
+            text-align: center;
+        }
+
+        input[type="checkbox"] {
+            transform: scale(1.5);
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container mt-5">
+    <h2 class="mb-4 text-center">{{ exam_name }} Invigilators</h2>
+
+    <div class="mb-4">
+        <h4>Subject: {{ subject }} | Week: {{ week }} | Day: {{ day }} | Period: {{ period }}</h4>
+    {% if results and results|length > 0 %}
+        <form id="invigilatorsForm" action="/confirm_invigilators" method="POST">
+            <div class="table-responsive">
+                <table class="table table-bordered table-hover">
+                    <thead>
+                        <tr>
+                            <th class="checkbox-cell">Select</th>
+                            <th>Teacher ID</th>
+                            <th>Name</th>
+                            <th>Code</th>
+                            <th>Total Invigilations</th>
+                            <th>Justification</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for teacher in results %}
+                        <tr>
+                            <td class="checkbox-cell">
+                                <input type="checkbox" name="selected_teachers" value="{{ teacher.TeacherID }}" checked>
+                            </td>
+                            <td>{{ teacher.TeacherID }}</td>
+                            <td>{{ teacher.Name }}</td>
+                            <td>{{ teacher.Code }}</td>
+                            <td>{{ teacher.TotalInvigilations }}</td>
+                            <td>{{ teacher.reason }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Hidden fields for passing exam details -->
+            <input type="hidden" name="exam_name" value="{{ exam_name }}">
+            <input type="hidden" name="subject" value="{{ subject }}">
+            <input type="hidden" name="week" value="{{ week }}">
+            <input type="hidden" name="day" value="{{ day }}">
+            <input type="hidden" name="period" value="{{ period }}">
+
+            <button type="submit" class="btn nord-btn btn-block mt-3">Confirm Invigilators</button>
+        </form>
+    {% else %}
+        <p>No teachers found for the specified criteria.</p>
+    {% endif %}
+
+    <a href="/" class="btn btn-secondary btn-block mt-3">Go Back</a>
+</div>
+
+</body>
+</html>
