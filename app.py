@@ -3,7 +3,7 @@ from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import text, or_
 from sqlalchemy.orm import joinedload
 from sqlalchemy.ext.hybrid import hybrid_property
-
+from sqlalchemy.pool import NullPool
 import time
 from flask import current_app
 
@@ -17,12 +17,8 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+mysqlconnector://invigilationdb_l
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
-    'pool_recycle': 60,       # Close and reopen connections after 60s
-    'pool_pre_ping': True,    # Check if connection is alive
-    'pool_size': 1,           # Only keep 1 connection
-    'max_overflow': 0         # No extra burst connections
+    'poolclass': NullPool
 }
-
 
 
 db = SQLAlchemy(app)
@@ -108,6 +104,17 @@ def valid_lesson_filters(model, subject, day, period):
         model.Day == day
     ]
 
+
+def get_priority(lesson):
+    # True if it's a Y11 or Y13 lesson
+    is_priority = any(year in lesson.Class for year in ['11', '13'])
+    # True if it's a free lesson (lower priority than Y11/Y13)
+    is_free = lesson.Class.lower() == 'free'
+    return (
+        0 if is_priority else 1 if is_free else 2,  # priority group
+        lesson.teacher.invigilation_count           # tiebreaker
+    )
+
 @app.route('/find_lessons', methods=['POST'])
 def find_lessons():
     form_data = parse_exam_form(request)
@@ -120,11 +127,10 @@ def find_lessons():
                    .options(joinedload(model.teacher).joinedload(Teachers.invigilation))
                    .limit(form_data['invigilators_count'] * 3)
                    .all())
+        
+        
 
-        lessons.sort(key=lambda l: (
-            not any(year in l.Class for year in ['11', '13']),
-            l.teacher.invigilation_count
-        ))
+        lessons.sort(key=get_priority)  
 
         unique_codes = set()
         results = []
