@@ -48,9 +48,8 @@
                     <thead>
                         <tr>
                             <th class="checkbox-cell">Select</th>
-                            <th>Teacher ID</th>
+                            <th>Teacher Code</th>
                             <th>Name</th>
-                            <th>Code</th>
                             <th>Total Invigilations</th>
                             <th>Justification</th>
                         </tr>
@@ -59,11 +58,10 @@
                         {% for teacher in results %}
                         <tr>
                             <td class="checkbox-cell">
-                                <input type="checkbox" name="selected_teachers" value="{{ teacher.TeacherID }}" checked>
+                                <input type="checkbox" name="selected_teachers" value="{{ teacher.TeacherCode }}" checked>
                             </td>
-                            <td>{{ teacher.TeacherID }}</td>
+                            <td>{{ teacher.TeacherCode }}</td>
                             <td>{{ teacher.Name }}</td>
-                            <td>{{ teacher.Code }}</td>
                             <td>{{ teacher.TotalInvigilations }}</td>
                             <td>{{ teacher.reason }}</td>
                         </tr>
@@ -72,7 +70,6 @@
                 </table>
             </div>
 
-            <!-- Hidden fields for passing exam details -->
             <input type="hidden" name="exam_name" value="{{ exam_name }}">
             <input type="hidden" name="subject" value="{{ subject }}">
             <input type="hidden" name="week" value="{{ week }}">

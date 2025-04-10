@@ -1,37 +1,32 @@
-<!-- templates/confirmation.html -->
 <!DOCTYPE html>
 <html>
     <head>
         <title>Confirmed Invigilators</title>
         <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
         <style>
-            /* Add your custom styling here */
-  
             th {
-     background-color: #2fccd6 !important;
-        color: white !important;
-        padding: 10px !important;
-     text-align: center !important;
-    }
+                background-color: #2fccd6 !important;
+                color: white !important;
+                padding: 10px !important;
+                text-align: center !important;
+            }
 
-    .nord-btn {
-        background-color: #2fccd6 !important;
-        color: white !important;
-        border: none;
-}
+            .nord-btn {
+                background-color: #2fccd6 !important;
+                color: white !important;
+                border: none;
+            }
 
-.nord-btn:hover {
-    background-color: #0056b3 !important;
-}
-    
+            .nord-btn:hover {
+                background-color: #0056b3 !important;
+            }
         </style>
     </head>
 
     <body>
         <div class="container mt-5">
             <h2 class="mb-4">Confirmed Invigilators</h2>
-    
-            <!-- Exam Details Section -->
+
             <div class="mb-4">
                 <h4>Exam Details</h4>
                 <p><strong>Exam Name:</strong> {{ exam_name }}</p>
@@ -39,15 +34,14 @@
                 <p><strong>Day:</strong> {{ day }}</p>
                 <p><strong>Period:</strong> {{ period }}</p>
             </div>
-    
-            <!-- Confirmed Invigilators Table -->
+
             <div class="table-responsive">
                 <table class="table table-bordered table-hover">
                     <thead class="thead-light">
                         <tr>
                             <th>First Name</th>
                             <th>Last Name</th>
-                            <th>Code</th>
+                            <th>Teacher Code</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -55,15 +49,14 @@
                         <tr>
                             <td>{{ teacher.FirstName }}</td>
                             <td>{{ teacher.LastName }}</td>
-                            <td>{{ teacher.Code }}</td>
+                            <td>{{ teacher.TeacherCode }}</td>
                         </tr>
                         {% endfor %}
                     </tbody>
                 </table>
             </div>
-    
-            <!-- Return Home Button -->
+
             <a href="/" class="btn btn-primary nord-btn">Return Home</a>
         </div>
     </body>
-    </html>
+</html>
