@@ -17,10 +17,10 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+mysqlconnector://invigilationdb_l
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
-    'pool_recycle': 280,       # Recycle stale connections
-    'pool_pre_ping': True,     # Test connection before using it
-    'pool_size': 5,            # Min number of DB connections to keep ready
-    'max_overflow': 10         # Extra connections allowed above pool_size
+    'pool_recycle': 60,       # Close and reopen connections after 60s
+    'pool_pre_ping': True,    # Check if connection is alive
+    'pool_size': 1,           # Only keep 1 connection
+    'max_overflow': 0         # No extra burst connections
 }
 
 
@@ -211,3 +211,8 @@ def confirm_invigilators():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
+
+
+@app.teardown_appcontext
+def shutdown_session(exception=None):
+    db.session.remove()
