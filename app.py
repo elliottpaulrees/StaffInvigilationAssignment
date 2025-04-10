@@ -4,6 +4,10 @@ from sqlalchemy import text, or_
 from sqlalchemy.orm import joinedload
 from sqlalchemy.ext.hybrid import hybrid_property
 
+import time
+from flask import current_app
+
+
 app = Flask(__name__)
 
 
@@ -12,12 +16,20 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+mysqlconnector://invigilationdb_l
 
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+    'pool_recycle': 280,       # Recycle stale connections
+    'pool_pre_ping': True,     # Test connection before using it
+    'pool_size': 5,            # Min number of DB connections to keep ready
+    'max_overflow': 10         # Extra connections allowed above pool_size
+}
+
 
 
 db = SQLAlchemy(app)
 
 @app.route('/')
 def home():
+    
     return render_template('index.html')
 
 @app.route('/test_connection')
@@ -135,6 +147,8 @@ def find_lessons():
 
 @app.route('/confirm_invigilators', methods=['POST'])
 def confirm_invigilators():
+    overall_start = time.time()
+
     selected_codes = request.form.getlist('selected_teachers')
     if not selected_codes:
         return "No teachers were selected.", 400
@@ -145,23 +159,54 @@ def confirm_invigilators():
         day = request.form.get('day')
         period = request.form.get('period')
 
+        # 🕒 DB Write Timing
+        write_start = time.time()
+
+        # Fetch Teachers by TeacherCode
         confirmed_teachers = Teachers.query.filter(Teachers.TeacherCode.in_(selected_codes)).all()
-        for teacher in confirmed_teachers:
-            if not teacher.invigilation:
-                teacher.invigilation = InvigilationSession(TeacherCode=teacher.TeacherCode, Count=1)
-            else:
-                teacher.invigilation.Count += 1
 
+        values = ", ".join([f"('{code}', 1)" for code in selected_codes])
+        sql = f"""
+            INSERT INTO invigilationsessions (TeacherCode, Count)
+            VALUES {values}
+            ON DUPLICATE KEY UPDATE Count = Count + 1;
+        """
+        db.session.execute(text(sql))
         db.session.commit()
+        write_end = time.time()
+        print(f"⏱️ DB write took {write_end - write_start:.3f} seconds")
 
-        return render_template('confirmation.html',
-                               exam_name=exam_name,
-                               subject=subject,
-                               day=day,
-                               period=period,
-                               teachers=confirmed_teachers)
+        # 🕒 Teacher Fetch Timing (for display)
+        fetch_start = time.time()
+        confirmed_teachers = (
+            Teachers.query
+            .options(joinedload(Teachers.invigilation))
+            .filter(Teachers.TeacherCode.in_(selected_codes))
+            .all()
+        )
+        fetch_end = time.time()
+        print(f"⏱️ Teacher fetch took {fetch_end - fetch_start:.3f} seconds")
+
+        # 🕒 Template Render Timing
+        render_start = time.time()
+        response = render_template('confirmation.html',
+                                   exam_name=exam_name,
+                                   subject=subject,
+                                   day=day,
+                                   period=period,
+                                   teachers=confirmed_teachers)
+        render_end = time.time()
+        print(f"⏱️ Template render took {render_end - render_start:.3f} seconds")
+
+        # 🚀 Total Duration
+        total_time = time.time() - overall_start
+        print(f"🚀 Total request time: {total_time:.3f} seconds")
+
+        return response
+
     except Exception as e:
         db.session.rollback()
+        print("❌ Error confirming invigilators:", e)
         return f"Error confirming invigilators: {str(e)}"
 
 if __name__ == '__main__':
