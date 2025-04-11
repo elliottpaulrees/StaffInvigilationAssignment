@@ -1,14 +1,18 @@
-from flask import Flask, render_template, request
+from flask import Flask, render_template, request, session
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import text, or_
 from sqlalchemy.orm import joinedload
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.pool import NullPool
 import time
+from sqlalchemy import update
 from flask import current_app
+from sqlalchemy import create_engine
 
+import sqlalchemy.pool  # Import sqlalchemy.pool to access QueuePool
 
 app = Flask(__name__)
+app.secret_key = 'your-very-secret-key'
 
 
 #app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+mysqlconnector://root:qwertyui@localhost/teachertimetables'
@@ -16,12 +20,22 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+mysqlconnector://invigilationdb_l
 
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
+#app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+#    'poolclass': NullPool
+#}
+
+
+
+# Configure connection pooling using SQLALCHEMY_ENGINE_OPTIONS
 app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
-    'poolclass': NullPool
+    'poolclass': sqlalchemy.pool.QueuePool,  # Use QueuePool for connection pooling
+    'pool_size': 10,                         # Number of connections to keep open
+    'max_overflow': 5,                       # Allowable overflow connections
 }
 
-
+# Initialize SQLAlchemy with the Flask app
 db = SQLAlchemy(app)
+
 
 @app.route('/')
 def home():
@@ -123,33 +137,50 @@ def find_lessons():
         return "Invalid week selected."
 
     try:
+        # Retrieve the lessons based on the filters provided
         lessons = (model.query.filter(*valid_lesson_filters(model, form_data['subject'], form_data['day'], form_data['period']))
                    .options(joinedload(model.teacher).joinedload(Teachers.invigilation))
-                   .limit(form_data['invigilators_count'] * 3)
+                   .limit(form_data['invigilators_count'] * 3)  # Load enough records to account for possible exclusions
                    .all())
-        
-        
 
-        lessons.sort(key=get_priority)  
+        # Sort the lessons by priority (if applicable)
+        lessons.sort(key=get_priority)
 
+        # Create a set to track unique teacher codes and avoid duplicates
         unique_codes = set()
-        results = []
+        results = []  # This will hold the selected teachers' data
+
+        # Loop through the lessons and filter for teachers that are free
         for lesson in lessons:
             teacher = lesson.teacher
             if teacher and teacher.TeacherCode not in unique_codes:
                 unique_codes.add(teacher.TeacherCode)
+                # Fetch the InvigilationCountID here
+                invigilation_count_id = teacher.invigilation.InvigilationCountID if teacher.invigilation else None
                 results.append({
                     "TeacherCode": teacher.TeacherCode,
-                    "Name": f"{teacher.FirstName} {teacher.LastName}",
+                    "FirstName": teacher.FirstName,
+                    "LastName": teacher.LastName,
                     "TotalInvigilations": teacher.invigilation_count,
-                    "reason": lesson.Class
+                    "InvigilationCountID": invigilation_count_id,  # Include InvigilationCountID
+                    "reason": lesson.Class  # The reason the teacher is needed (could be the class name)
                 })
+                
+                # Stop once we have the required number of invigilators
                 if len(results) >= form_data['invigilators_count']:
                     break
 
+        # Store the selected teachers in the session for later use
+        session['confirmed_teachers'] = results
+        
+        # Render the results template and pass the teacher data along
         return render_template('results.html', **form_data, results=results)
+    
     except Exception as e:
+        # Handle any exceptions and return an error message
         return f"Error retrieving lessons: {str(e)}"
+
+
 
 @app.route('/confirm_invigilators', methods=['POST'])
 def confirm_invigilators():
@@ -168,30 +199,29 @@ def confirm_invigilators():
         # 🕒 DB Write Timing
         write_start = time.time()
 
-        # Fetch Teachers by TeacherCode
-        confirmed_teachers = Teachers.query.filter(Teachers.TeacherCode.in_(selected_codes)).all()
+        # Get the teachers from the session (no need to query again)
+        confirmed_teachers = session.get('confirmed_teachers', [])
 
-        values = ", ".join([f"('{code}', 1)" for code in selected_codes])
-        sql = f"""
-            INSERT INTO invigilationsessions (TeacherCode, Count)
-            VALUES {values}
-            ON DUPLICATE KEY UPDATE Count = Count + 1;
-        """
-        db.session.execute(text(sql))
-        db.session.commit()
+        # Flag each teacher as selected
+        for teacher in confirmed_teachers:
+            teacher['selected'] = teacher['TeacherCode'] in selected_codes  # Mark as selected
+
+        # Create a list of mappings for bulk update including the primary key (InvigilationCountID)
+        updates = [
+            {"InvigilationCountID": teacher['InvigilationCountID'],  # Primary Key
+             "TeacherCode": teacher['TeacherCode'], 
+             "Count": int(teacher['TotalInvigilations']) + 1}
+            for teacher in confirmed_teachers if teacher['selected']
+        ]
+        
+
+        # Perform bulk update
+        if updates:  # Only execute if there are updates
+            db.session.bulk_update_mappings(InvigilationSession, updates)
+            db.session.commit()
+
         write_end = time.time()
         print(f"⏱️ DB write took {write_end - write_start:.3f} seconds")
-
-        # 🕒 Teacher Fetch Timing (for display)
-        fetch_start = time.time()
-        confirmed_teachers = (
-            Teachers.query
-            .options(joinedload(Teachers.invigilation))
-            .filter(Teachers.TeacherCode.in_(selected_codes))
-            .all()
-        )
-        fetch_end = time.time()
-        print(f"⏱️ Teacher fetch took {fetch_end - fetch_start:.3f} seconds")
 
         # 🕒 Template Render Timing
         render_start = time.time()
@@ -200,7 +230,7 @@ def confirm_invigilators():
                                    subject=subject,
                                    day=day,
                                    period=period,
-                                   teachers=confirmed_teachers)
+                                   teachers=confirmed_teachers)  # Use the already fetched teachers
         render_end = time.time()
         print(f"⏱️ Template render took {render_end - render_start:.3f} seconds")
 
@@ -214,6 +244,8 @@ def confirm_invigilators():
         db.session.rollback()
         print("❌ Error confirming invigilators:", e)
         return f"Error confirming invigilators: {str(e)}"
+    
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)

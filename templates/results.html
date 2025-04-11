@@ -61,7 +61,7 @@
                                 <input type="checkbox" name="selected_teachers" value="{{ teacher.TeacherCode }}" checked>
                             </td>
                             <td>{{ teacher.TeacherCode }}</td>
-                            <td>{{ teacher.Name }}</td>
+                            <td>{{ teacher.FirstName }} {{ teacher.LastName }}</td> <!-- Combined name -->
                             <td>{{ teacher.TotalInvigilations }}</td>
                             <td>{{ teacher.reason }}</td>
                         </tr>
