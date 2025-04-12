@@ -24,8 +24,6 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 #    'poolclass': NullPool
 #}
 
-
-
 # Configure connection pooling using SQLALCHEMY_ENGINE_OPTIONS
 app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
     'poolclass': sqlalchemy.pool.QueuePool,  # Use QueuePool for connection pooling
@@ -39,7 +37,7 @@ db = SQLAlchemy(app)
 
 @app.route('/')
 def home():
-    
+
     return render_template('index.html')
 
 @app.route('/test_connection')
@@ -225,12 +223,13 @@ def confirm_invigilators():
 
         # 🕒 Template Render Timing
         render_start = time.time()
+        selected_teachers = [t for t in confirmed_teachers if t.get('selected')]
         response = render_template('confirmation.html',
-                                   exam_name=exam_name,
-                                   subject=subject,
-                                   day=day,
-                                   period=period,
-                                   teachers=confirmed_teachers)  # Use the already fetched teachers
+                                exam_name=exam_name,
+                                subject=subject,
+                                day=day,
+                                period=period,
+                                teachers=selected_teachers)
         render_end = time.time()
         print(f"⏱️ Template render took {render_end - render_start:.3f} seconds")
 
