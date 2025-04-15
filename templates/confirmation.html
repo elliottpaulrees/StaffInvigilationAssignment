@@ -3,6 +3,7 @@
     <head>
         <title>Confirmed Invigilators</title>
         <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
         <style>
             th {
                 background-color: #2fccd6 !important;
@@ -20,41 +21,49 @@
             .nord-btn:hover {
                 background-color: #0056b3 !important;
             }
+
+            .exam-header {
+                background: #f1f1f1;
+                padding: 15px;
+                margin-top: 40px;
+                border-left: 6px solid #2fccd6;
+            }
         </style>
     </head>
 
     <body>
         <div class="container mt-5">
             <h2 class="mb-4">Confirmed Invigilators</h2>
-
             <div class="mb-4">
-                <h4>Exam Details</h4>
-                <p><strong>Exam Name:</strong> {{ exam_name }}</p>
-                <p><strong>Subject:</strong> {{ subject }}</p>
-                <p><strong>Day:</strong> {{ day }}</p>
-                <p><strong>Period:</strong> {{ period }}</p>
+                <p><strong>Week:</strong> {{ week }} | <strong>Day:</strong> {{ day }} | <strong>Period:</strong> {{ period }}</p>
             </div>
 
-            <div class="table-responsive">
+            {% for exam in exams %}
+            <div class="exam-header">
+                <h4>{{ exam.exam_name }} ({{ exam.subject }}) - Room: {{ exam.room }}</h4>
+            </div>
+
+            <div class="table-responsive mb-4">
                 <table class="table table-bordered table-hover">
                     <thead class="thead-light">
                         <tr>
+                            <th>Teacher Code</th>
                             <th>First Name</th>
                             <th>Last Name</th>
-                            <th>Teacher Code</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {% for teacher in teachers %}
+                        {% for teacher in exam.teachers %}
                         <tr>
+                            <td>{{ teacher.TeacherCode }}</td>
                             <td>{{ teacher.FirstName }}</td>
                             <td>{{ teacher.LastName }}</td>
-                            <td>{{ teacher.TeacherCode }}</td>
                         </tr>
                         {% endfor %}
                     </tbody>
                 </table>
             </div>
+            {% endfor %}
 
             <a href="/" class="btn btn-primary nord-btn">Return Home</a>
         </div>

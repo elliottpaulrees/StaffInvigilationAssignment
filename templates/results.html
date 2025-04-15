@@ -3,14 +3,44 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ exam_name }} Invigilators</title>
+    <title>Invigilation Assignment Results</title>
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <script src="https://unpkg.com/htmx.org@1.9.2"></script>
     <style>
         th {
             background-color: #2fccd6 !important;
             color: white !important;
-            padding: 10px !important;
-            text-align: center !important;
+            text-align: center;
+        }
+
+        .exam-header {
+            background: #f1f1f1;
+            padding: 15px;
+            margin-top: 40px;
+            border-left: 6px solid #2fccd6;
+        }
+
+        /* Add to your existing styles */
+        .teacher-dropdown {
+            min-width: 200px;
+            background: white;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            padding: 6px 12px;
+        }
+
+
+        .swap-btn {
+            background-color: #ffc107;
+            border: none;
+            padding: 5px 10px;
+            color: black;
+            font-size: 0.9rem;
+            border-radius: 4px;
+        }
+
+        .swap-btn:hover {
+            background-color: #e0a800;
         }
 
         .nord-btn {
@@ -23,66 +53,179 @@
             background-color: #0056b3 !important;
         }
 
-        .checkbox-cell {
-            width: 40px;
-            text-align: center;
+          
+        /* Add to existing styles */
+        .modified-dropdown {
+            border: 2px solid #ffc107 !important;
         }
 
-        input[type="checkbox"] {
-            transform: scale(1.5);
-            cursor: pointer;
+        .duplicate-dropdown {
+            border: 2px solid #dc3545 !important;
+            animation: shake 0.5s;
         }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+   
+
+
     </style>
 </head>
 <body>
 
 <div class="container mt-5">
-    <h2 class="mb-4 text-center">{{ exam_name }} Invigilators</h2>
+    <h1 class="text-center mb-4">Suggested Invigilators</h1>
+    <h5 class="text-center text-muted mb-5">
+        Period: {{ period }} | Week: {{ week }} | Day: {{ day }}
+    </h5>
 
-    <div class="mb-4">
-        <h4>Subject: {{ subject }} | Week: {{ week }} | Day: {{ day }} | Period: {{ period }}</h4>
-    {% if results and results|length > 0 %}
-        <form id="invigilatorsForm" action="/confirm_invigilators" method="POST">
-            <div class="table-responsive">
-                <table class="table table-bordered table-hover">
-                    <thead>
-                        <tr>
-                            <th class="checkbox-cell">Select</th>
-                            <th>Teacher Code</th>
-                            <th>Name</th>
-                            <th>Total Invigilations</th>
-                            <th>Justification</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for teacher in results %}
-                        <tr>
-                            <td class="checkbox-cell">
-                                <input type="checkbox" name="selected_teachers" value="{{ teacher.TeacherCode }}" checked>
-                            </td>
-                            <td>{{ teacher.TeacherCode }}</td>
-                            <td>{{ teacher.FirstName }} {{ teacher.LastName }}</td> <!-- Combined name -->
-                            <td>{{ teacher.TotalInvigilations }}</td>
-                            <td>{{ teacher.reason }}</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+    <form action="/confirm_invigilators" method="POST">
+        {% for exam in exams %}
+            <div class="exam-header">
+                <h4>{{ exam.exam_name }} ({{ exam.subject }}) - Room: {{ exam.room }}</h4>
             </div>
 
-            <input type="hidden" name="exam_name" value="{{ exam_name }}">
-            <input type="hidden" name="subject" value="{{ subject }}">
-            <input type="hidden" name="week" value="{{ week }}">
-            <input type="hidden" name="day" value="{{ day }}">
-            <input type="hidden" name="period" value="{{ period }}">
+            <!-- Hidden fields for the exam details -->
+            <input type="hidden" name="exam_name_{{ loop.index }}" value="{{ exam.exam_name }}">
+            <input type="hidden" name="subject_{{ loop.index }}" value="{{ exam.subject }}">
+            <input type="hidden" name="room_{{ loop.index }}" value="{{ exam.room }}">
+            <input type="hidden" name="count" value="{{ exams | length }}">
 
-            <button type="submit" class="btn nord-btn btn-block mt-3">Confirm Invigilators</button>
-        </form>
-    {% else %}
-        <p>No teachers found for the specified criteria.</p>
-    {% endif %}
-    <button onclick="history.back()" class="btn nord-btn btn-block mt-3">Go Back</button>
+            <!-- List all invigilators for the current exam -->
+            {% if exam.teachers and exam.teachers | length > 0 %}
+                <!-- Build unique teacher codes dictionary once per exam -->
+                {% set assigned_codes = {} %}
+                {% for t in exam.teachers %}
+                    {% if t.TeacherCode not in assigned_codes %}
+                        {% set _ = assigned_codes.update({t.TeacherCode: 1}) %}
+                    {% endif %}
+                {% endfor %}
+
+                <!-- Store unique codes as hidden fields at exam level -->
+                {% for code in assigned_codes %}
+                    <input type="hidden" name="already_assigned" value="{{ code }}">
+                {% endfor %}
+
+                <div class="table-responsive mt-3">
+                    <table class="table table-bordered table-hover">
+                        <thead>
+                            <tr>
+                                <th>Teacher Code</th>
+                                <th>Name</th>
+                                <th>Total Invigilations</th>
+                                <th>Reason</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Loop over invigilators and display each one -->
+                            {% for teacher in exam.teachers %}
+                                <tr id="invigilator_row_{{ teacher.TeacherCode }}">
+                                    <td>{{ teacher.TeacherCode }}</td>
+                                    <td>
+                                        <select class="teacher-dropdown form-control" 
+                                                data-exam="{{ exam.exam_name }}"
+                                                data-original-teacher="{{ teacher.TeacherCode }}"
+                                                onchange="updateTeacherRow(this)">
+                                            {% for alt_teacher in all_teachers %}
+                                                <option value="{{ alt_teacher.TeacherCode }}"
+                                                        data-first="{{ alt_teacher.FirstName }}"
+                                                        data-last="{{ alt_teacher.LastName }}"
+                                                        data-count="{{ alt_teacher.TotalInvigilations }}"
+                                                        data-reason="Covering during {{ alt_teacher.Class }}"
+                                                        {% if alt_teacher.TeacherCode == teacher.TeacherCode %}selected{% endif %}>
+                                                    {{ alt_teacher.FirstName }} {{ alt_teacher.LastName }}
+                                                    ({% if '13' in alt_teacher.Class %}Y13
+                                                     {% elif '11' in alt_teacher.Class %}Y11
+                                                     {% else %}Free{% endif %})
+                                                </option>
+                                            {% endfor %}
+                                        </select>
+                                    </td>
+                                    <td>{{ teacher.TotalInvigilations }}</td>
+                                    <td>{{ teacher.reason }}</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <p class="text-danger">No available invigilators for this exam.</p>
+            {% endif %}
+        {% endfor %}
+
+
+        <div id="validation-error" class="alert alert-danger d-none">
+            <i class="fas fa-exclamation-triangle"></i>
+            <span id="error-message">Some teachers are assigned to multiple exams</span>
+        </div>
+
+        <button type="submit" class="btn nord-btn btn-block mt-4">Confirm All Assignments</button>
+        
+    </form>
+
+    <button onclick="history.back()" class="btn btn-secondary btn-block mt-2">Go Back</button>
+
+   
 </div>
+
+
+<script>
+    function updateTeacherRow(select) {
+        const row = select.closest('tr');
+        const selectedOption = select.options[select.selectedIndex];
+        
+        // Update all fields in the row
+        row.cells[0].textContent = select.value; // TeacherCode
+        row.cells[2].textContent = selectedOption.dataset.count; // TotalInvigilations
+        row.cells[3].textContent = selectedOption.dataset.reason; // Reason
+        
+
+    }
+
+     // Replace the earlier validation script with this:
+document.querySelector('form').addEventListener('submit', function(e) {
+    const errorDiv = document.getElementById('validation-error');
+    errorDiv.classList.add('d-none');
+    
+    const teacherMap = new Map();
+    let hasDuplicates = false;
+    
+    document.querySelectorAll('.teacher-dropdown').forEach(dropdown => {
+        dropdown.classList.remove('duplicate-dropdown');
+        const code = dropdown.value;
+        
+        if (teacherMap.has(code)) {
+            hasDuplicates = true;
+            teacherMap.get(code).push(dropdown);
+        } else {
+            teacherMap.set(code, [dropdown]);
+        }
+    });
+    
+    if (hasDuplicates) {
+        e.preventDefault();
+        errorDiv.classList.remove('d-none');
+        
+        // Highlight all duplicates
+        teacherMap.forEach((elements, code) => {
+            if (elements.length > 1) {
+                elements.forEach(el => {
+                    el.classList.add('duplicate-dropdown');
+                });
+            }
+        });
+        
+        // Scroll to first error
+        document.querySelector('.duplicate-dropdown').scrollIntoView({
+            behavior: 'smooth',
+            block: 'center'
+        });
+    }
+});
+    </script>
 
 </body>
 </html>
